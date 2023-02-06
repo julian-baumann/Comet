@@ -3,7 +3,10 @@ using System.Drawing;
 using System.Threading.Tasks;
 using CoreGraphics;
 using Microsoft.Maui;
+using Microsoft.Maui.Controls.Compatibility.Platform.iOS;
+using Microsoft.Maui.Devices;
 using UIKit;
+using Color = System.Drawing.Color;
 
 namespace Comet.iOS
 {
@@ -80,14 +83,14 @@ namespace Comet.iOS
 
 			if (NavigationController != null)
 			{
-				this.NavigationController.NavigationBar.BarTintColor = barColor;
-			}
+				NavigationController.NavigationBar.BarTintColor = barColor;
+				
+				if (View != null && OperatingSystem.IsIOSVersionAtLeast(13))
+				{
+					View.BackgroundColor = UIColor.SystemBackground;
+				}
 
-			var textColor = CurrentView?.GetNavigationTextColor()?.ToPlatform() ?? CUINavigationController.DefaultTintColor;
-			if (NavigationController != null)
-			{
-				this.NavigationController.NavigationBar.TintColor = textColor;
-				this.NavigationController.NavigationBar.TitleTextAttributes = new UIStringAttributes { ForegroundColor = textColor };
+				NavigationController.NavigationBar.PrefersLargeTitles = true;
 			}
 		}
 		protected override void Dispose(bool disposing)
