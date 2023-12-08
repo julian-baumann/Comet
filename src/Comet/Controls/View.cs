@@ -14,14 +14,13 @@ using Microsoft.Maui.Animations;
 using Microsoft.Maui.Devices;
 using Microsoft.Maui.Graphics;
 using Microsoft.Maui.HotReload;
-using Microsoft.Maui.Internal;
 using Microsoft.Maui.Layouts;
 using Microsoft.Maui.Primitives;
 
 namespace Comet
 {
 
-	public class View : ContextualObject, IDisposable, IView, IHotReloadableView, ISafeAreaView, IContentTypeHash, IAnimator, ITitledElement, IGestureView, IBorder, IVisualTreeElement
+	public class View : ContextualObject, IDisposable, IView, IHotReloadableView, ISafeAreaView, IContentTypeHash, IAnimator, ITitledElement, IGestureView, IBorder, IVisualTreeElement, IPadding
 	{
 		static internal readonly WeakList<IView> ActiveViews = new WeakList<IView>();
 		HashSet<(string Field, string Key)> usedEnvironmentData = new HashSet<(string Field, string Key)>();
@@ -428,7 +427,8 @@ namespace Comet
 					//Get the current MauiContext
 					//I might be able to do something better, like searching up though the parent
 					//Maybe I can do something where I get the current Context whenever I build
-					var mauiContext = this.ViewHandler?.MauiContext ?? CometApp.CurrentWindow?.MauiContext;
+					//In test project, we don't assign the CurrentWindows to have the MauiContext
+					var mauiContext = GetMauiContext();
 					if (mauiContext != null)
 					{
 						var type = this.GetType();
@@ -620,6 +620,13 @@ namespace Comet
 			this.SetFrameFromPlatformView(frame);
 			if (BuiltView != null)
 				BuiltView.LayoutSubviews(frame);
+			else if (this is ContainerView container)
+			{
+				foreach (var view in container)
+				{
+					view.LayoutSubviews(this.Frame);
+				}
+			}
 		}
 		public override string ToString() => $"{this.GetType()} - {this.Id}";
 
@@ -793,8 +800,9 @@ namespace Comet
 			//Measure(new Size(widthConstraint, heightConstraint));
 			Measure(widthConstraint, heightConstraint);
 		void IView.InvalidateMeasure() => InvalidateMeasurement();
-		void IView.InvalidateArrange() {}
-		void IHotReloadableView.TransferState(IView newView) {
+		void IView.InvalidateArrange() { }
+		void IHotReloadableView.TransferState(IView newView)
+		{
 			var oldState = this.GetState();
 			if (oldState == null)
 				return;
@@ -829,5 +837,7 @@ namespace Comet
 		bool IView.IsFocused { get; set; }
 
 		bool IView.InputTransparent => this.GetPropertyValue<bool?>() ?? false;
+
+		Thickness IPadding.Padding => this.GetPadding();
 	}
 }
