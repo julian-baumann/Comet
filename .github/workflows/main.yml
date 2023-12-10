@@ -31,12 +31,12 @@ jobs:
         fallback: 0.0.0
 
     - name: Pack
-      run: dotnet pack src/Comet/Comet.csproj -c Release -p:PackageVersion='${{ steps.previoustag.outputs.tag }}-dev.${{ github.run_number }}' -p:Symbols -p:SymbolPackageFormat=snupkg --output packages
+      run: dotnet pack src/Comet/Comet.csproj -c Release -p:PackageVersion='${{ steps.previoustag.outputs.tag }}-dev.${{ github.run_number }}' --include-symbols --output packages
 
     - name: Upload to GitHub registry
       run: |
         dotnet nuget add source --username InterShare --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text --name github "https://nuget.pkg.github.com/julian-baumann/index.json"
-        dotnet nuget push "packages/Comet.${{ steps.previoustag.outputs.tag }}-dev.${{ github.run_number }}.nupkg" --api-key "${{ secrets.GITHUB_TOKEN }}" --source "github"
+        dotnet nuget push "packages/JulianBaumann.Comet.${{ steps.previoustag.outputs.tag }}-dev.${{ github.run_number }}.nupkg" --api-key "${{ secrets.GITHUB_TOKEN }}" --source "github"
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v2
