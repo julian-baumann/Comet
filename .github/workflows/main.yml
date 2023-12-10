@@ -1,110 +1,44 @@
-name: main-build
-
-#this drops to nuget
+name: Build main
 
 on:
   push:
-    branches: [ main]
-    paths-ignore:
-      - 'templates/**'
-
-  workflow_dispatch:
+    branches: [ main ]
 
 jobs:
   build:
-    name: Build Comet-Nuget
-    env:
-        NUPKG_MAJOR: 0.2
-        BASE: 334
-    runs-on: windows-2022
+    name: Build Comet
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        submodules: true
 
-    steps: 
-      - uses: actions/checkout@v2
-        with:
-          submodules: true
-          
-      - uses: actions/setup-java@v2
-        with:
-          distribution: 'zulu' # See 'Supported distributions' for available options
-          java-version: '11'
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v1
+      with:
+        dotnet-version: '8.0.x'
 
-      - name:  install .NET 
-        shell: pwsh
-        run: |
-          $ProgressPreference = 'SilentlyContinue'
-          Invoke-WebRequest -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile dotnet-install.ps1
-          & .\dotnet-install.ps1 -InstallDir "$env:ProgramFiles\dotnet\" -Verbose -Channel STS
-          & dotnet --list-sdks    
-              
-      # - name: Install Visual Studio Preview
-      #   shell: pwsh
-      #   run: powershell .\build\install-vs.ps1
-      
-      - name: Add msbuild to PATH
-        uses: microsoft/setup-msbuild@v1.1
-        with:
-          vs-prerelease: true
+    - name: Build
+      run: |
+        dotnet workload restore --ignore-failed-sources --skip-sign-check
 
-      
-      - name: Install Maui Workload
-        shell: pwsh
-        run: |
-          & dotnet workload install maui `
-            --skip-sign-check 
-     
-      - name: Restore Comet-Nuget.sln
-        run: msbuild /r build/Comet-Nuget.sln
- 
-      - name: Build Comet-Nuget.sln
-        run: MSBuild build/Comet-Nuget.sln
-        
-      - name: Nuget Pack step
-        shell: bash
-        run: |
-          MINOR_VERSION=$(( $BASE + $GITHUB_RUN_NUMBER ))
-          VERSION=0.3.$MINOR_VERSION-beta
-          echo "PACKAGE VERSION: $VERSION"
-          nuget pack Comet.nuspec -version $VERSION -Symbols -SymbolPackageFormat snupkg
+    - name: Get Previous tag
+      id: previoustag
+      uses: "WyriHaximus/github-action-get-previous-tag@v1"
+      with:
+        fallback: 0.0.0
 
-      # - name: Nuget Pack Template step
-      #   shell: bash
-      #   run: |
-      #     MINOR_VERSION=$(( $BASE + $GITHUB_RUN_NUMBER ))
-      #     VERSION=0.3.$MINOR_VERSION-beta
-      #     echo "PACKAGE VERSION: $VERSION"
-      #     nuget pack "templates\comet-templates.nuspec" -version $VERSION
+    - name: Pack
+      run: dotnet pack src/Comet/Comet.csproj -c Release -p:PackageVersion='${{ steps.previoustag.outputs.tag }}-main.${{ github.run_number }}' -p:Symbols -p:SymbolPackageFormat=snupkg  --output packages
 
-      - uses: actions/upload-artifact@v2
-        name: Upload Nuget Artifact
-        with:
-          name: nuget-artifact
-          path: |
-            **\*.nupkg
-            **\*.snupkg
-            **\*.symbols.nupkg
-  
-  publish:
-      name: Publish
-      needs:
-        - build
-      runs-on: windows-latest
-      steps:
-        - name: Download Artifacts
-          uses: actions/download-artifact@v1
-          with:
-            name: nuget-artifact
-        
-        - name: Setup .NET Core
-          uses: actions/setup-dotnet@v1
-          with:
-            dotnet-version: 3.1.100
-            
-        - name: Setup NuGet
-          uses: nuget/setup-nuget@v1
-          with:
-            nuget-api-key: ${{ secrets.NUGET_API_KEY }}
-            nuget-version: 'latest'
-            
-        - name: Push nuget to Nuget.org
-          run: |
-            nuget push nuget-artifact\*.nupkg -Source https://api.nuget.org/v3/index.json -ApiKey ${{ secrets.NUGET_ORG_API_KEY }} -SkipDuplicate
+    - name: Upload to GitHub registry
+      run: |
+        dotnet nuget add source --username InterShare --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text --name github "https://nuget.pkg.github.com/julian-baumann/index.json"
+        dotnet nuget push "packages/Comet.${{ steps.previoustag.outputs.tag }}-develop.${{ github.run_number }}.nupkg" --api-key "${{ secrets.GITHUB_TOKEN }}" --source "github"
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: NuGet-Package
+        path: packages
